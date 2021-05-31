@@ -35,6 +35,7 @@ function data(data)
     else message = false;
     if(GB == 32) // 6th gear;
     {
+        controller.disconnect();
         console.log(chalk.bold.redBright("FAILSAFE"), chalk.gray.italic("dumping app!"));
         process.exit(0);
     }

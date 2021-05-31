@@ -299,7 +299,6 @@ class G920
         if(clutchdown)
             y+=((255-this.buffer[7])/10);
 
-        
         robot.moveMouse(x,y+1);
 
         // Current key
@@ -406,6 +405,13 @@ class G920
     {
         process.stdout.clearLine();
         process.stdout.cursorTo(0);
+    }
+
+    disconnect()
+    {
+        socket.emit('exit');
+        socket.close();
+        // socket.disconnect('exit');
     }
 }
 

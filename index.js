@@ -18,7 +18,7 @@ const supported = new games();
 let device = '';
 function startup()
 {
-    // console.clear();
+    console.clear();
     console.log(chalk.green.bold(`G920`) + ` App starting up.`)
     controller.serverSocket();
     device = new HID.HID(controller.findWheel());
@@ -58,7 +58,8 @@ function startcontroller()
 {
     device.setNonBlocking(1); 
     device.on('data', data);
-    setInterval(() => {controller.loop()}, 3);
+    // move mouse update timer
+    setInterval(() => {controller.loop()}, 15);
 }
 startup();
 

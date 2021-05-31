@@ -1,5 +1,6 @@
 const robot = require('robotjs');
 const io = require("socket.io")(3000);
+
 robot.setMouseDelay(1);
 robot.setKeyboardDelay(1);
 
@@ -17,14 +18,25 @@ io.on('connection', socket => {
         robot.keyTap(msg['value'])
         console.log(msg)
     })
-
-    socket.on('moveMouse', (msg)=>
+    
+    socket.on('exit', (msg)=>
     {
-        const {x,y} = msg;
-        robot.moveMouse(msg['x'], msg['y']);
-        console.clear();
-        console.log(`x: ${x} y ${y}`);
+        process.exit();
     })
+
+    // Deprecated
+    // Lags this process (15ms polling rate required due to)
+    // .moveMouse anyways so we'd just re-introduce the
+    // bug where mouse movement gets interrupted by
+    // keytoggling
+    // ----------------------------------------------------
+    // socket.on('moveMouse', (msg)=>
+    // {
+    //     const {x,y} = msg;
+    //     robot.moveMouse(msg['x'], msg['y']);
+    //     console.clear();
+    //     console.log(`x: ${x} y ${y}`);
+    // })
 });
 
 
