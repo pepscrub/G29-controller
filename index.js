@@ -6,8 +6,6 @@ const HID = require('node-hid');
 // const expressWs = require('express-ws')(app);
 const chalk = require('chalk');
 const child_process = require('child_process');
-const io = require("socket.io-client");
-let socket = io.connect('http://localhost:3000', {reconnect: true});
 
 const {options, games} = require('./options');
 const {controller} = require('./G920');
@@ -22,7 +20,7 @@ function startup()
 {
     // console.clear();
     console.log(chalk.green.bold(`G920`) + ` App starting up.`)
-    serverSocket()
+    controller.serverSocket();
     device = new HID.HID(controller.findWheel());
 
     device.on('error', err=>
@@ -62,16 +60,6 @@ function startcontroller()
     device.on('data', data);
     setInterval(() => {controller.loop()}, 3);
 }
-
-function serverSocket()
-{
-    // Add a connect listener
-    socket.on('connect', function (socket) {
-        console.log('Connected!');
-    });
-    socket.emit('CH01', 'me', 'test msg');
-}
-
 startup();
 
 

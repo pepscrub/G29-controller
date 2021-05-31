@@ -1,15 +1,13 @@
 const HID = require('node-hid');
 const chalk = require('chalk');
 const robot = require('robotjs');
-const {
-    MessageChannel,
-} = require('worker_threads');
-const {port1, port2} = new MessageChannel();
 
 const tmp = require('./options').options;
 const op = new tmp();
 
 const devices = HID.devices();
+const io = require("socket.io-client");
+let socket = io.connect('http://localhost:3000', {reconnect: true});
 
 
 robot.setMouseDelay(1);
@@ -238,6 +236,18 @@ class G920
         if(process.argv[2] == 'debug') console.timeEnd('Mouse Calculation')
     }
 
+    // Socket
+    // using sockets to handle all of our movement
+    // since we want this event loop to run ***FAST***
+    serverSocket()
+    {
+        // Connect to the socket
+        socket.on('connect', function (socket) {
+            console.log(chalk.bold.cyan('Socket'), 'connected')
+        });
+    }
+
+
     loop()
     {
         if(process.argv[2] == 'debug') console.time('Main loop')
@@ -289,6 +299,7 @@ class G920
         if(clutchdown)
             y+=((255-this.buffer[7])/10);
 
+        
         robot.moveMouse(x,y+1);
 
         // Current key
@@ -301,7 +312,7 @@ class G920
             if(!crouchup)
             {
                 this.modifiers.crouchup = true;
-                port1.postMessage('shift down')
+                toggle('shift', 'up') 
             }
         }
         else
@@ -309,7 +320,7 @@ class G920
             if(crouchup)
             {
                 this.modifiers.crouchup = false;
-                port1.postMessage('shift up')
+                toggle('shift', 'up') 
             }
         }
 
@@ -320,7 +331,7 @@ class G920
             if(!sprintup)
             {
                 this.modifiers.sprintup = true;
-                port1.postMessage('control down')
+                toggle('control down')
             }
         }
         else
@@ -328,7 +339,7 @@ class G920
             if(sprintup)
             {
                 this.modifiers.sprintup = false;
-                port1.postMessage('control up')
+                toggle('control up')
             }
         }
   
@@ -340,7 +351,7 @@ class G920
                 this.modifiers.scrollup = false;
 
                 scroll >= 9 ? this.modifiers.scroll = 1 : this.modifiers.scroll+=1;
-                robot.keyTap(this.modifiers.scroll);
+                socket.emit('keytap', {value: this.modifiers.scroll})
             }
             else if(scrolldwn)
             {
@@ -348,7 +359,7 @@ class G920
                 this.modifiers.scrolldwn = false;
 
                 scroll <= 1 ? this.modifiers.scroll = 9 : this.modifiers.scroll-=1;
-                robot.keyTap(this.modifiers.scroll);
+                socket.emit('keytap', {value: this.modifiers.scroll})
             }
         }
 
@@ -362,8 +373,7 @@ class G920
                 this.modifiers['keydown'] = true;
                 this.modifiers['pk'] = key;
 
-                // Expensive process
-                port1.postMessage(`${key} down`);
+                toggle(key, 'down') 
             }
         }else{
             if(keydown)
@@ -371,7 +381,7 @@ class G920
                 this.modifiers['keydown'] = false;
                 let key = this.modifiers['pk'];
 
-                port1.postMessage(`${key} up`);
+                toggle(key, 'up') 
             }
         }
 
@@ -401,21 +411,7 @@ class G920
 
 function toggle(key, updwn)
 {
-    robot.keyToggle(key, updwn);
+    socket.emit('keytoggle', {key: key, type: updwn})
 }
-
-port2.on('message', (message)=>
-{
-    const keys = message.split(' ');
-    queueMicrotask(()=>
-    {
-        toggle(keys[0], keys[1]) 
-    })
-})
-port2.on('close', ()=>
-{
-    console.log('closed');
-})
-
 
 module.exports.controller = new G920();
