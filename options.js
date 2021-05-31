@@ -1,10 +1,10 @@
 class options {
-    accuracy = 1;
+    accuracy = 0;
     debug = false;
-    pixelshift = 15;
-    range = 400;
-    updatetime = 3;
-    constructor(accuracy=1, debug=false, pixelshift=15, range=400,updatetime=3)
+    pixelshift = 0;
+    range = 0;
+    updatetime = 0;
+    constructor(accuracy=1, debug=false, pixelshift=15, range=400,updatetime=15)
     {
         this.accuracy = accuracy;
         this.debug = debug;

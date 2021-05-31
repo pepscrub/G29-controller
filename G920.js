@@ -1,6 +1,11 @@
 const HID = require('node-hid');
 const chalk = require('chalk');
 const robot = require('robotjs');
+const {
+    MessageChannel,
+} = require('worker_threads');
+const {port1, port2} = new MessageChannel();
+
 const tmp = require('./options').options;
 const op = new tmp();
 
@@ -8,6 +13,7 @@ const devices = HID.devices();
 
 
 robot.setMouseDelay(1);
+robot.setKeyboardDelay(1);
 
 class G920
 {
@@ -34,12 +40,15 @@ class G920
 
         walk: false,        // Holding key down (w /s)
         crouch: false,
+        sprint: false,
 
 
         scroll: 0,
+        scrollpressed: false,
         scrollup: false,     // Increase Scroll 
         scrolldwn: false,     // Decrease Scroll 
         crouchup: false,
+        sprintup: false,
 
         shiftup: false,
         shiftdwn: false,
@@ -58,7 +67,7 @@ class G920
     findWheel()
     {
         // Init with empty path to check later.
-        console.time('found');
+        console.time('found in');
         let path = '';
         try
         {
@@ -101,7 +110,7 @@ class G920
             else
             {
                 this.logLine(chalk.blue.bold(`Searching ... `));
-                console.timeEnd('found');
+                console.timeEnd('found in');
                 return path;
             }
     }
@@ -152,59 +161,51 @@ class G920
     {
         const {DB,SP,GB,WA,WH,AP,BP,CP} = this.buffer;
         const buffer = this.buffer;
-
-
-        this.logLine(`Buffer: ${buffer[1]}`);
+        const scroll = this.modifiers.scroll;
         // Gearbox Shift + Sprinting
         switch(buffer[2])
         {
             case 1:
-                robot.keyToggle('shift', 'down');
-                robot.keyToggle('shift', 'up');
+                this.modifiers.crouch = true;
             break;
             case 2:
-                robot.keyToggle('control', 'down');
-                robot.keyToggle('control', 'up');
+                this.modifiers.sprint = true;
+            break;
+            case 4:
+                this.modifiers.scrollup = true;
+            break;
+            case 8:
+                this.modifiers.scrolldwn = true;
+            break;
+            default:
+                this.modifiers.scrollpressed = false;
+                this.modifiers.scrollup = false;
+                this.modifiers.scrolldwn = false;
+                this.modifiers.crouch = false;
+                this.modifiers.sprint = false;
             break;
         }
+
+
 
         // In reverse gear (press S instead of W)
         if(buffer[1] == 128) this.reverse = true;
-
+        
         // Handling walking input
         // Accelator pedal is slightly pushed down
-        if(buffer[3] < 200) this.modifiers['walk'] = true;
-        else
-        {
-            // Update the pressed down key to be released
-            if(this.modifiers['keydown'])
-                robot.keyToggle(this.modifiers['pk'], 'up');
-            // Update other attributes to reflect modifications
-            this.modifiers['keydown'] = false;
-            this.modifiers['walk'] = false;
-        }
-
+        if(buffer[5] < 200)this.modifiers.walk = true
+        else this.modifiers.walk = false
         // Brake down (scrolling)
 
-        if(buffer[4] < 200)
-        {
+        if(buffer[6] < 200)
             this.modifiers['brakedown'] = true;
-        }
         else
-        {
             this.modifiers['brakedown'] = false;
-            this.modifiers['scrollup'] = false;
-        }
         
-        if(buffer[5] < 200)
-        {
+        if(buffer[7] < 200)
             this.modifiers['clutchdown'] = true;
-        }
         else
-        {
             this.modifiers['clutchdown'] = false;
-            this.modifiers['scrolldwn'] = false;
-        }
     }
 
     // really is wheel caclulation
@@ -242,6 +243,7 @@ class G920
         if(process.argv[2] == 'debug') console.time('Main loop')
         if(this.failsafe) return;
 
+        // Can't expldoe the modifies for some reason.
         let {x,y} = robot.getMousePos();
         let up = this.modifiers.up;
         let down = this.modifiers.down;
@@ -255,6 +257,13 @@ class G920
         let clutchdown = this.modifiers.clutchdown;
         let shiftdwn = this.modifiers.shiftdwn;
         let shiftup = this.modifiers.shiftup;
+        let sprint = this.modifiers.sprint;
+        let sprintup = this.modifiers.sprintup;
+
+        let scroll = this.modifiers.scroll;
+        let scrollup = this.modifiers.scrollup;
+        let scrolldwn = this.modifiers.scrolldwn;
+        let scrollpressed = this.modifiers.scrollpressed;
 
 
         x += this.modifiers.wheel;
@@ -273,6 +282,13 @@ class G920
         else
             this.helddown = this.helddown > 25 ? this.helddown : this.helddown += 2;
 
+        // Scrolling up using brake
+        if(brakedown)
+            y-=((255-this.buffer[6])/10);
+        // Scrolling down using clutch
+        if(clutchdown)
+            y+=((255-this.buffer[7])/10);
+
         robot.moveMouse(x,y+1);
 
         // Current key
@@ -282,62 +298,92 @@ class G920
         // Shifting
         if(crouch)
         {
-            if(crouchup)
+            if(!crouchup)
             {
                 this.modifiers.crouchup = true;
-                robot.keyToggle('shift', 'down');
+                port1.postMessage('shift down')
             }
         }
         else
         {
             if(crouchup)
             {
-                robot.keyToggle('shift', 'up');
+                this.modifiers.crouchup = false;
+                port1.postMessage('shift up')
             }
         }
 
-        // Walking forward / backwards
+
+        // Sprinting
+        if(sprint)
+        {
+            if(!sprintup)
+            {
+                this.modifiers.sprintup = true;
+                port1.postMessage('control down')
+            }
+        }
+        else
+        {
+            if(sprintup)
+            {
+                this.modifiers.sprintup = false;
+                port1.postMessage('control up')
+            }
+        }
+  
+        if(!scrollpressed)
+        {
+            if(scrollup)
+            {
+                this.modifiers.scrollpressed = true;
+                this.modifiers.scrollup = false;
+
+                scroll >= 9 ? this.modifiers.scroll = 1 : this.modifiers.scroll+=1;
+                robot.keyTap(this.modifiers.scroll);
+            }
+            else if(scrolldwn)
+            {
+                this.modifiers.scrollpressed = true;
+                this.modifiers.scrolldwn = false;
+
+                scroll <= 1 ? this.modifiers.scroll = 9 : this.modifiers.scroll-=1;
+                robot.keyTap(this.modifiers.scroll);
+            }
+        }
+
+
+        // Walking logic
+        // 
         if(walk)
         {
             if(!keydown)
             {
-                this.modifiers.pk = key;
-                this.keydown = true;
-                robot.keyToggle(key, 'down');
+                this.modifiers['keydown'] = true;
+                this.modifiers['pk'] = key;
+
+                // Expensive process
+                port1.postMessage(`${key} down`);
             }
         }else{
             if(keydown)
             {
-               robot.keyToggle(key, 'up');
-            }
-        }
+                this.modifiers['keydown'] = false;
+                let key = this.modifiers['pk'];
 
-        // Scrolling up using brake
-        if(brakedown)
-        {
-            if(!shiftup)
-            {
-                this.modifiers.shiftup = true;
-                this.modifiers.scroll+1 > 9 ? this.modifiers.scroll = 0 : this.modifiers.scroll += 1;
-                robot.keyTap(this.modifiers.scroll);
-            }
-        }
-
-
-        if(clutchdown)
-        {
-            if(!shiftdwn)
-            {
-                this.modifiers.shiftdwn = true;
-                this.modifiers.scroll-1 <= 9 ? this.modifiers.scroll = 9 : this.modifiers.scroll -= 1;
-                robot.keyTap(this.modifiers.scroll);
+                port1.postMessage(`${key} up`);
             }
         }
 
         this.modifiers.xm = x;
         this.modifiers.ym = y;
-        if(process.argv[2] == 'debug') console.timeEnd('Main loop')
-    }
+
+        if(process.argv[2] == 'debug') 
+        {
+            console.clear();
+            console.timeEnd('Main loop')
+        }
+    } 
 
     // helpers
     logLine(message)
@@ -352,6 +398,24 @@ class G920
         process.stdout.cursorTo(0);
     }
 }
+
+function toggle(key, updwn)
+{
+    robot.keyToggle(key, updwn);
+}
+
+port2.on('message', (message)=>
+{
+    const keys = message.split(' ');
+    queueMicrotask(()=>
+    {
+        toggle(keys[0], keys[1]) 
+    })
+})
+port2.on('close', ()=>
+{
+    console.log('closed');
+})
 
 
 module.exports.controller = new G920();

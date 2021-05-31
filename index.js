@@ -5,6 +5,9 @@ const HID = require('node-hid');
 // const cookieParser = require('cookie-parser');
 // const expressWs = require('express-ws')(app);
 const chalk = require('chalk');
+const child_process = require('child_process');
+const io = require("socket.io-client");
+let socket = io.connect('http://localhost:3000', {reconnect: true});
 
 const {options, games} = require('./options');
 const {controller} = require('./G920');
@@ -17,19 +20,56 @@ const supported = new games();
 let device = '';
 function startup()
 {
-    console.clear();
-    console.log(chalk.green.bold(`G920`) + ` Starting up.`)
+    // console.clear();
+    console.log(chalk.green.bold(`G920`) + ` App starting up.`)
+    serverSocket()
     device = new HID.HID(controller.findWheel());
 
     device.on('error', err=>
     {
-        console.error(chalk.bold.red('ERROR') + ` ${e.message}\n${err.stack}`);
+        console.error(chalk.bold.red('ERROR') + ` ${err.message}\n${err.stack}`);
     })
-
+    
+    // Completely seperate process
+    // -- immedite exit code when started
+    const child = child_process.exec(`start cmd.exe /K node events.js`);
+    
     // Updates even if the values are the same
+    let countdown = 5;
+
+    if(process.argv['2'] == 'debug') countdown = 0;
+
+    let timer = setInterval(() => {
+        if(countdown == 0)
+        {
+            controller.logLine(`${chalk.bold.yellow('Starting controller')}\n`)
+            clearInterval(timer);
+            startcontroller();
+            return;
+        }
+        else
+        {
+            controller.logLine(`${chalk.bold.yellow('Starting in:')} ${countdown}`)
+        }
+
+        countdown--;
+    }, 1000); 
+}
+
+function startcontroller()
+{
     device.setNonBlocking(1); 
     device.on('data', data);
-    setInterval(() => {controller.loop()}, 2);
+    setInterval(() => {controller.loop()}, 3);
+}
+
+function serverSocket()
+{
+    // Add a connect listener
+    socket.on('connect', function (socket) {
+        console.log('Connected!');
+    });
+    socket.emit('CH01', 'me', 'test msg');
 }
 
 startup();
