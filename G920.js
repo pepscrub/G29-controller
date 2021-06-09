@@ -311,7 +311,7 @@ class G920
             if(!crouchup)
             {
                 this.modifiers.crouchup = true;
-                toggle('shift', 'up') 
+                toggle('shift', 'down') 
             }
         }
         else
@@ -330,7 +330,7 @@ class G920
             if(!sprintup)
             {
                 this.modifiers.sprintup = true;
-                toggle('control down')
+                toggle('control', 'down')
             }
         }
         else
@@ -338,7 +338,7 @@ class G920
             if(sprintup)
             {
                 this.modifiers.sprintup = false;
-                toggle('control up')
+                toggle('control', 'up')
             }
         }
   
